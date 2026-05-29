@@ -1,0 +1,9 @@
+========================================
+NetGer App - Application Info
+========================================
+App Name    : NetGer App
+Version     : 1.0
+Developer   : Joy Ravelo Tarigan
+AppId       : 23587c1c-3d5d-4dc1-98a0-3894b20b0f39
+Created     : 30 Mei 2026
+========================================
