@@ -52,10 +52,12 @@
 ## 🚀 Cara Install
 
 ### Metode 1: Jalankan file build_fixed.bat
-```bash
-Masuk dist\NetworkTools.exe
-Jalankan NetworkTools.exe
-```
+1. Download `build_fixed.bat`
+2. Simpan di folder manapun
+3. Double-click untuk menjalankan
+4. Buka `dist\NetworkTools.exe`
+5. Jalankan `NetworkTools.exe`
+   
 ### Metode 2: Dari Source Code
 ```bash
 # Clone repository
