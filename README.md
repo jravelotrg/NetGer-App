@@ -51,7 +51,12 @@
 
 ## 🚀 Cara Install
 
-### Metode 1: Dari Source Code
+### Metode 1: Jalankan file build_fixed.bat
+```bash
+Masuk dist\NetworkTools.exe
+Jalankan NetworkTools.exe
+```
+### Metode 2: Dari Source Code
 ```bash
 # Clone repository
 git clone https://github.com/joyravelo/netger-app.git
