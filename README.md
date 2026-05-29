@@ -51,13 +51,7 @@
 
 ## 🚀 Cara Install
 
-### Metode 2: Portable
-1. Download `NetworkTools.exe`
-2. Simpan di folder manapun
-3. Double-click untuk menjalankan
-4. Buka browser → `http://127.0.0.1:5000`
-
-### Metode 3: Dari Source Code
+### Metode 1: Dari Source Code
 ```bash
 # Clone repository
 git clone https://github.com/joyravelo/netger-app.git
