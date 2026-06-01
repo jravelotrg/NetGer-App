@@ -321,8 +321,8 @@ function displayResults(results, summary, dnsServer) {
                 Non-authoritative
             </div>
         </div>
-        <div style="overflow-x: auto;">
-            <table class="results-table">
+        <div class="table-scroll-wrapper" style="max-height: 450px; overflow-y: auto; overflow-x: auto; margin-top: 20px;">
+            <table class="results-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr>
                         <th>Domain</th>

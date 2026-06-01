@@ -716,3 +716,22 @@ button.danger {
     .result-header { flex-direction: column; gap: 10px; }
     .result-header button { width: auto; }
 }
+
+/* Force scroll vertical untuk semua hasil firewall */
+#panel-firewall .result-content,
+#firewall-results .result-content,
+.result-content {
+    max-height: 350px !important;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    display: block !important;
+}
+
+/* Pastikan pre juga ikut aturan */
+#panel-firewall .result-content pre,
+#firewall-results .result-content pre,
+.result-content pre {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    margin: 0 !important;
+}

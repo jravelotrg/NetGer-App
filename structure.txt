@@ -1,0 +1,11 @@
+project/
+│
+├── app.py                 # Backend Flask (Python)
+├── templates/
+│   └── index.html         # Template HTML utama
+├── static/
+│   ├── css/
+│   │   └── style.css      # Stylesheet
+│   └── js/
+│       └── script.js      # JavaScript
+└── requirements.txt       # Dependencies
