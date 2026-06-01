@@ -1,0 +1,33 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Inno Setup Output
+output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# File executable
+*.exe
+
+# Logs & temp
+*.log
+~$*.xlsx

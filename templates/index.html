@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Firewall & Network Tools Pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Firewall & Network Tools Pro</h1>
+            <p>Professional Network Administration Toolkit</p>
+        </div>
+        
+        <div class="menu-grid">
+            <div class="menu-card" onclick="selectMenu('firewall')" id="menu-firewall">
+                <div class="menu-icon">🔥</div>
+                <h2>Firewall Command Generator</h2>
+                <p>Generate firewall configuration scripts for IP blocking</p>
+            </div>
+            <div class="menu-card" onclick="selectMenu('nslookup')" id="menu-nslookup">
+                <div class="menu-icon">🌐</div>
+                <h2>NSLookup Pro Tool</h2>
+                <p>Advanced DNS lookup with multiple server options</p>
+            </div>
+        </div>
+        
+        <!-- Panel Firewall -->
+        <div id="panel-firewall" class="panel">
+            <h2>🔥 Firewall Command Generator</h2>
+            <div class="form-group">
+                <label>📁 Group Name:</label>
+                <input type="text" id="group-name" value="BLOCKLIST_GROUP" placeholder="Enter group name...">
+            </div>
+            <div class="form-group">
+                <label>📝 IP List (one per line):</label>
+                <textarea id="ip-list" rows="10" placeholder="192.168.1.10/32&#10;192.168.1.20/32&#10;10.0.0.0/24"></textarea>
+            </div>
+            <button onclick="generateFirewall()">⚡ GENERATE CONFIGURATION</button>
+            <div id="firewall-results" style="margin-top: 30px;"></div>
+        </div>
+        
+        <!-- Panel NSLookup -->
+        <div id="panel-nslookup" class="panel">
+            <h2>🌐 NSLookup Pro Tool</h2>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>🌍 DNS Server:</label>
+                    <select id="dns-server">
+                        <option value="default">🌐 Default System DNS</option>
+                        <option value="8.8.8.8">☁️ Google DNS (8.8.8.8)</option>
+                        <option value="8.8.4.4">☁️ Google DNS (8.8.4.4)</option>
+                        <option value="1.1.1.1">☁️ Cloudflare DNS (1.1.1.1)</option>
+                        <option value="1.0.0.1">☁️ Cloudflare DNS (1.0.0.1)</option>
+                        <option value="9.9.9.9">☁️ Quad9 DNS (9.9.9.9)</option>
+                        <option value="208.67.222.222">☁️ OpenDNS (208.67.222.222)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>⚡ Threads (1-20):</label>
+                    <input type="number" id="threads" value="5" min="1" max="20">
+                </div>
+                
+                <div class="form-group">
+                    <label>⏱️ Timeout (seconds):</label>
+                    <input type="number" id="timeout" value="5" min="1" max="30">
+                </div>
+            </div>
+            
+            <div class="dns-info" id="dns-info">
+                ℹ️ Using DNS server: <strong>Default System DNS</strong>
+            </div>
+            
+            <div class="form-group">
+                <label>📝 Domain List (one per line):</label>
+                <textarea id="domains" rows="10" placeholder="google.com&#10;facebook.com&#10;github.com&#10;stackoverflow.com"></textarea>
+            </div>
+            
+            <button onclick="runNSLookup()">🔍 RUN NSLOOKUP</button>
+            
+            <div class="log-container" id="log-container">
+                <div class="log-entry log-info">📋 Ready to run NSLookup...</div>
+            </div>
+            
+            <div class="progress-container" id="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill">0%</div>
+                </div>
+            </div>
+            
+            <div id="nslookup-results" style="margin-top: 30px;"></div>
+        </div>
+    </div>
+    
+    <!-- FOOTER -->
+    <div class="footer">
+        <div class="footer-content">
+            <div class="footer-text">
+                © 2024-2025 <strong>Firewall & Network Tools Pro</strong> | 
+                Developed with <span class="heart">❤️</span> by 
+                <a href="https://www.linkedin.com/in/joy-ravelo/" target="_blank" rel="noopener noreferrer">
+                    Joy Ravelo
+                </a>
+            </div>
+            <div class="footer-small">
+                Professional Network Administration Toolkit | All Rights Reserved
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">✅ Copied to clipboard!</div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
