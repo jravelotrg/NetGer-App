@@ -186,72 +186,120 @@ def api_firewall():
         data = request.json
         group_name = data.get('group_name', 'BLOCKLIST_GROUP').strip()
         ip_text = data.get('ip_list', '')
-        
-        # Clean IP list
-        ip_text_cleaned = ip_text.replace('[', '').replace(']', '')
-        ip_list_raw = [
-            ip.strip() for ip in ip_text_cleaned.split('\n') 
-            if ip.strip() and not ip.strip().startswith('#')
-        ]
-        
-        # Remove duplicates while preserving order
+
+        # ============================================
+        # FUNGSI NORMALISASI IP
+        # ============================================
+        def normalize_ip(raw_ip):
+            """Membersihkan berbagai format aneh menjadi format IP dengan titik"""
+            # Ganti berbagai variasi [.] (.) {.} menjadi titik
+            raw_ip = raw_ip.replace('[.]', '.')
+            raw_ip = raw_ip.replace('(.)', '.')
+            raw_ip = raw_ip.replace('{.}', '.')
+            # Hapus semua karakter kurung siku, kurung kurawal, kurung biasa
+            raw_ip = raw_ip.replace('[', '')
+            raw_ip = raw_ip.replace(']', '')
+            raw_ip = raw_ip.replace('{', '')
+            raw_ip = raw_ip.replace('}', '')
+            raw_ip = raw_ip.replace('(', '')
+            raw_ip = raw_ip.replace(')', '')
+            # Ganti koma menjadi titik (kasus 192.168,21,33)
+            raw_ip = raw_ip.replace(',', '.')
+            # Bersihkan spasi
+            raw_ip = raw_ip.strip()
+            return raw_ip
+
+        # ============================================
+        # FUNGSI KONVERSI CIDR KE NETMASK
+        # ============================================
+        def cidr_to_netmask(cidr):
+            """Convert CIDR prefix (e.g., 24) to netmask (e.g., 255.255.255.0)"""
+            mask = (0xffffffff >> (32 - cidr)) << (32 - cidr)
+            return f"{(mask >> 24) & 0xff}.{(mask >> 16) & 0xff}.{(mask >> 8) & 0xff}.{mask & 0xff}"
+
+        def parse_ip_with_prefix(ip_str):
+            """
+            Given IP string like '192.168.11.2/27' or '123.14.41.42' or '192.168.1.1/32'
+            Returns (ip_address, netmask, prefix)
+            """
+            if '/' in ip_str:
+                ip_part, cidr_part = ip_str.split('/', 1)
+                prefix = int(cidr_part)
+            else:
+                ip_part = ip_str
+                prefix = 32
+            netmask = cidr_to_netmask(prefix)
+            return ip_part, netmask, prefix
+
+        # Bersihkan semua baris IP
+        ip_list_raw = []
+        for line in ip_text.split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                normalized = normalize_ip(line)
+                if normalized:
+                    ip_list_raw.append(normalized)
+
+        # Hapus duplikat
         ip_list = list(dict.fromkeys(ip_list_raw))
-        
+
         if not ip_list:
             return jsonify({
                 'success': False, 
                 'error': 'No valid IP addresses provided'
             })
-        
+
         if not group_name:
             return jsonify({
                 'success': False, 
                 'error': 'Group name is required'
             })
-        
+
         # Generate FortiGate Address Configuration
         fortigate_address = "config firewall address\n"
         for ip in ip_list:
-            nama = ip.replace('/', '_')
-            fortigate_address += f'    edit "block_{nama}-m32"\n'
-            fortigate_address += f'        set subnet {ip}\n'
+            ip_addr, netmask, prefix = parse_ip_with_prefix(ip)
+            obj_name = f"block_{ip_addr}-m{prefix}"
+            fortigate_address += f'    edit "{obj_name}"\n'
+            fortigate_address += f'        set subnet {ip_addr} {netmask}\n'
             fortigate_address += '    next\n'
         fortigate_address += "end\n"
-        
+
         # Generate FortiGate Group Configuration
         fortigate_group = "config firewall addrgrp\n"
         fortigate_group += f'    edit "{group_name}"\n'
         for ip in ip_list:
-            nama = ip.replace('/', '_')
-            fortigate_group += f'        append member "block_{nama}-m32"\n'
+            ip_addr, _, prefix = parse_ip_with_prefix(ip)
+            obj_name = f"block_{ip_addr}-m{prefix}"
+            fortigate_group += f'        append member "{obj_name}"\n'
         fortigate_group += "    next\n"
         fortigate_group += "end\n"
-        
+
         # Generate CheckPoint Configuration
         checkpoint_address = ""
         for ip in ip_list:
-            nama = ip.replace('/', '_')
-            ip_addr = ip.split('/')[0] if '/' in ip else ip
+            ip_addr, _, prefix = parse_ip_with_prefix(ip)
+            obj_name = f"block_{ip_addr}-m{prefix}"
             checkpoint_address += (
-                f'add host name "block_{nama}-m32" '
+                f'add host name "{obj_name}" '
                 f'ip-address {ip_addr} '
                 f'groups "{group_name}" '
                 f'ignore-warnings true\n'
             )
-        
+
         files = [
             {'name': 'FortiGate Address Configuration', 'content': fortigate_address},
             {'name': 'FortiGate Group Configuration', 'content': fortigate_group},
             {'name': 'CheckPoint Configuration', 'content': checkpoint_address}
         ]
-        
+
         return jsonify({
             'success': True, 
             'files': files,
             'ip_count': len(ip_list),
             'group_name': group_name
         })
-        
+
     except Exception as e:
         return jsonify({
             'success': False, 
@@ -274,15 +322,26 @@ def api_nslookup():
         # ============================================
         # FUNGSI CLEAN DOMAIN - Untuk mengubah google[.]com menjadi google.com
         # ============================================
+
+        
         def clean_domain(domain):
-            """Clean domain from [.] format to ."""
+            """Clean domain from various malformed formats to valid domain."""
             domain = domain.strip()
-            # Replace [.] with .
+            # Replace berbagai variasi titik terhalang
             domain = domain.replace('[.]', '.')
-            # Replace (.) with .
             domain = domain.replace('(.)', '.')
-            # Replace {.} with .
             domain = domain.replace('{.}', '.')
+            # Hapus semua karakter kurung siku, kurung kurawal, kurung biasa
+            domain = domain.replace('[', '')
+            domain = domain.replace(']', '')
+            domain = domain.replace('{', '')
+            domain = domain.replace('}', '')
+            domain = domain.replace('(', '')
+            domain = domain.replace(')', '')
+            # Ganti koma menjadi titik (misal google,com -> google.com)
+            domain = domain.replace(',', '.')
+            # Bersihkan spasi
+            domain = domain.strip()
             return domain
         
         # Parse domains with cleaning
