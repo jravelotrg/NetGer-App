@@ -166,6 +166,148 @@ def nslookup_detailed(domain, timeout=5, dns_server=None, log_callback=None):
     
     return result
 
+# ============================================
+# REVERSE DNS FUNCTIONS
+# ============================================
+
+IPV4_REGEX = r'\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+PUBLIC_DNS_LIST = [
+    '1.1.1.1',      # Cloudflare
+    '8.8.8.8',      # Google
+    '8.8.4.4',      # Google Secondary
+    '208.67.222.222', # OpenDNS
+    '208.67.220.220', # OpenDNS Secondary
+    '9.9.9.9',      # Quad9
+    '8.26.56.26',   # Comodo
+]
+
+def extract_ip(text):
+    """Extract first IPv4 address from text."""
+    if not text or not isinstance(text, str):
+        return ''
+    match = re.search(IPV4_REGEX, text)
+    return match.group() if match else ''
+
+def is_private_ip(ip):
+    """Check if IP is private (RFC 1918) or localhost."""
+    if not ip:
+        return True
+    try:
+        parts = ip.split('.')
+        if len(parts) != 4:
+            return True
+        first = int(parts[0])
+        if first == 10:
+            return True
+        if first == 172 and 16 <= int(parts[1]) <= 31:
+            return True
+        if first == 192 and int(parts[1]) == 168:
+            return True
+        if first == 127:
+            return True
+        return False
+    except:
+        return True
+
+def reverse_dns(ip, timeout=5):
+    """Perform reverse DNS lookup (PTR) using system resolver."""
+    if not ip:
+        return ''
+    original_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(timeout)
+    try:
+        domain = socket.gethostbyaddr(ip)[0]
+        return domain
+    except (socket.herror, socket.timeout, Exception):
+        return ''
+    finally:
+        socket.setdefaulttimeout(original_timeout)
+
+def forward_dns_public(domain, timeout=5):
+    """Forward lookup (A record) using multiple public DNS servers. Returns first public IP found."""
+    if not domain:
+        return ''
+    for dns in PUBLIC_DNS_LIST:
+        try:
+            cmd = ['nslookup', domain, dns]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            output = result.stdout + result.stderr
+            matches = re.findall(IPV4_REGEX, output)
+            ips = ['.'.join(m) for m in matches if '.'.join(m) != dns]
+            for ip in ips:
+                if not is_private_ip(ip):
+                    return ip
+        except Exception:
+            continue
+    return ''
+
+def nslookup_public(domain, timeout=5):
+    """
+    Forward lookup using multiple public DNS servers.
+    Returns dict similar to nslookup_detailed but with public DNS rotation.
+    """
+    result = {
+        'domain': domain,
+        'ip_address': 'N/A',
+        'status': 'ERROR',
+        'dns_server': 'Public DNS (Multi-Server)',
+        'dns_server_ip': 'Multiple',
+        'answer_type': 'Non-authoritative',  # public DNS selalu non-authoritative
+        'response_time': 0,
+        'all_ips': []
+    }
+    
+    start_time = time.time()
+    for dns in PUBLIC_DNS_LIST:
+        try:
+            cmd = ['nslookup', domain, dns]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            output = proc.stdout + proc.stderr
+            
+            # Cek apakah domain ditemukan
+            if "can't find" in output.lower() or "nxdomain" in output.lower():
+                continue
+            
+            # Extract IPs
+            ips = []
+            # Method: cari "Addresses:" atau "Address:"
+            addresses_section = re.search(r'Addresses:\s+(.+?)(?:\n\s*\n|\n\S|$)', output, re.DOTALL | re.IGNORECASE)
+            if addresses_section:
+                ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+                found_ips = re.findall(ip_pattern, addresses_section.group(1))
+                for ip in found_ips:
+                    if ip != dns and not ip.startswith('127.') and ip not in ips:
+                        ips.append(ip)
+            
+            if not ips:
+                # Fallback ke baris "Address:"
+                lines = output.split('\n')
+                for line in lines:
+                    if 'Address:' in line and '#' not in line:
+                        ip_match = re.search(r'Address:\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+                        if ip_match:
+                            ip = ip_match.group(1)
+                            if ip != dns and not ip.startswith('127.') and ip not in ips:
+                                ips.append(ip)
+            
+            if ips:
+                # Filter private IP? Untuk public DNS, biasanya IP publik, tapi kita filter juga
+                public_ips = [ip for ip in ips if not is_private_ip(ip)]
+                if public_ips:
+                    ips = public_ips
+                result['all_ips'] = ips
+                result['ip_address'] = ', '.join(ips)
+                result['status'] = 'RESOLVED'
+                result['dns_server_ip'] = dns
+                result['response_time'] = round((time.time() - start_time) * 1000, 2)
+                return result
+        except Exception:
+            continue
+    
+    # Jika semua DNS gagal
+    result['response_time'] = -1
+    result['status'] = 'NOT_FOUND' if result['all_ips'] else 'ERROR'
+    return result
 
 # ============================================
 # API ROUTES
@@ -373,12 +515,7 @@ def api_nslookup():
         
         dns_names = {
             'default': 'Default System DNS',
-            '8.8.8.8': 'Google DNS (8.8.8.8)',
-            '8.8.4.4': 'Google DNS (8.8.4.4)',
-            '1.1.1.1': 'Cloudflare DNS (1.1.1.1)',
-            '1.0.0.1': 'Cloudflare DNS (1.0.0.1)',
-            '9.9.9.9': 'Quad9 DNS (9.9.9.9)',
-            '208.67.222.222': 'OpenDNS (208.67.222.222)'
+            'public': 'Public DNS (Multi-Server: Cloudflare, Google, OpenDNS, Quad9, Comodo)'
         }
         
         add_log(f"📋 Processing {len(domains)} domain(s)...", 'info')
@@ -393,22 +530,28 @@ def api_nslookup():
             def log_callback(msg, typ):
                 add_log(msg, typ)
             
-            dns = dns_server if dns_server != 'default' else None
-            return nslookup_detailed(domain, timeout, dns, log_callback)
+            if dns_server == 'public':
+                # Gunakan fungsi public DNS multi-server
+                return nslookup_public(domain, timeout)
+            else:
+                dns = None  # default
+                return nslookup_detailed(domain, timeout, dns, log_callback)
         
+        results = [None] * len(domains)  # tempat hasil sesuai urutan
         with ThreadPoolExecutor(max_workers=threads) as executor:
-            future_to_domain = {
-                executor.submit(process_domain, domain): domain 
-                for domain in domains
+            future_to_index = {
+                executor.submit(process_domain, domain): idx
+                for idx, domain in enumerate(domains)
             }
             
-            for future in as_completed(future_to_domain):
-                domain = future_to_domain[future]
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                domain = domains[idx]
                 try:
                     result = future.result()
-                    results.append(result)
+                    results[idx] = result
                 except Exception as e:
-                    results.append({
+                    results[idx] = {
                         'domain': domain,
                         'ip_address': 'N/A',
                         'status': 'ERROR',
@@ -416,11 +559,8 @@ def api_nslookup():
                         'dns_server': dns_server,
                         'all_ips': [],
                         'response_time': -1
-                    })
+                    }
                     add_log(f"💥 {domain} -> Critical error: {str(e)[:50]}", 'error')
-        
-        # Sort results alphabetically
-        results.sort(key=lambda x: x['domain'])
         
         # Calculate summary
         resolved = [r for r in results if r['status'] == 'RESOLVED']
@@ -506,6 +646,122 @@ def api_nslookup():
         })
 
 
+@app.route('/api/reverse-dns', methods=['POST'])
+def api_reverse_dns():
+    """
+    Perform reverse DNS (PTR) on extracted IPs, then forward DNS to public IP.
+    Input: multiline text (each line can contain an IP or text with IP)
+    """
+    try:
+        data = request.json
+        raw_data = data.get('data', '')
+        threads = min(max(int(data.get('threads', 5)), 1), 20)
+        timeout = min(max(int(data.get('timeout', 5)), 1), 30)
+
+        # Parse lines
+        lines = []
+        for line in raw_data.split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                lines.append(line)
+
+        if not lines:
+            return jsonify({'success': False, 'error': 'No valid data provided'})
+
+        logs = []
+        results = []
+
+        def add_log(msg, typ='info'):
+            logs.append({'message': msg, 'type': typ})
+
+        add_log(f"📋 Processing {len(lines)} entries with {threads} thread(s)...", 'info')
+        add_log(f"⏱️ Timeout: {timeout}s", 'info')
+
+        # Process each line
+        def process_entry(original_text):
+            ip = extract_ip(original_text)
+            if not ip:
+                return {
+                    'original_data': original_text,
+                    'extracted_ip': '',
+                    'domain': '',
+                    'public_ip': ''
+                }
+            domain = reverse_dns(ip, timeout)
+            public_ip = forward_dns_public(domain, timeout) if domain else ''
+            return {
+                'original_data': original_text,
+                'extracted_ip': ip,
+                'domain': domain,
+                'public_ip': public_ip
+            }
+
+        # Use ThreadPoolExecutor
+        results = [None] * len(lines)  # tempat hasil sesuai urutan
+        with ThreadPoolExecutor(max_workers=threads) as executor:
+            future_to_index = {
+                executor.submit(process_entry, line): idx
+                for idx, line in enumerate(lines)
+            }
+            completed = 0
+            total = len(lines)
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                original_line = lines[idx]
+                try:
+                    result = future.result()
+                    results[idx] = result
+                except Exception as e:
+                    results[idx] = {
+                        'original_data': original_line,
+                        'extracted_ip': '',
+                        'domain': '',
+                        'public_ip': '',
+                        'error': str(e)
+                    }
+                    add_log(f"💥 Error processing '{original_line[:50]}': {str(e)}", 'error')
+                completed += 1
+                if int(completed * 100 / total) % 10 == 0:
+                    add_log(f"📊 Progress: {completed}/{total} ({int(completed*100/total)}%)", 'info')
+
+
+        # Calculate summary
+        reverse_success = sum(1 for r in results if r.get('domain'))
+        forward_success = sum(1 for r in results if r.get('public_ip'))
+        summary = {
+            'total': len(results),
+            'reverse_success': reverse_success,
+            'forward_success': forward_success
+        }
+
+        # Generate Excel report
+        excel_rows = []
+        for r in results:
+            excel_rows.append({
+                'Original Data': r['original_data'],
+                'Extracted IP': r.get('extracted_ip', ''),
+                'Domain (Reverse)': r.get('domain', ''),
+                'Public IP (Forward)': r.get('public_ip', '')
+            })
+        df = pd.DataFrame(excel_rows)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Reverse DNS Results', index=False)
+        output.seek(0)
+        excel_data = base64.b64encode(output.getvalue()).decode('utf-8')
+
+        add_log(f"✅ Completed! Reverse success: {reverse_success}, Forward success: {forward_success}", 'success')
+        return jsonify({
+            'success': True,
+            'results': results,
+            'summary': summary,
+            'excel_data': excel_data,
+            'logs': logs
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+    
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'success': False, 'error': 'Route not found'}), 404

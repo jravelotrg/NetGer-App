@@ -400,6 +400,157 @@ document.addEventListener('keydown', function(e) {
                 e.preventDefault();
                 selectMenu('nslookup');
                 break;
+            case '3':   
+                e.preventDefault(); 
+                selectMenu('reverse'); 
+                break;
         }
     }
+});
+
+async function runReverseDNS() {
+    const rawData = document.getElementById('reverse-data').value.trim();
+    const threads = parseInt(document.getElementById('reverse-threads').value) || 5;
+    const timeout = parseInt(document.getElementById('reverse-timeout').value) || 5;
+
+    if (!rawData) {
+        showToast('❌ Please enter data!', true);
+        return;
+    }
+    if (threads < 1 || threads > 20) {
+        showToast('❌ Threads must be between 1 and 20!', true);
+        return;
+    }
+
+    // Reset UI
+    const logContainer = document.getElementById('reverse-log-container');
+    logContainer.innerHTML = '<div class="log-entry log-info">📋 Starting Reverse DNS lookup...</div>';
+    document.getElementById('reverse-results').innerHTML = '';
+    const progressDiv = document.getElementById('reverse-progress-container');
+    const progressFill = document.getElementById('reverse-progress-fill');
+    progressDiv.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressFill.textContent = '0%';
+
+    const runBtn = document.querySelector('button[onclick="runReverseDNS()"]');
+    const originalText = runBtn.textContent;
+    runBtn.textContent = '⏳ Processing...';
+    runBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/reverse-dns', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: rawData,
+                threads: threads,
+                timeout: timeout
+            })
+        });
+        const data = await response.json();
+        progressDiv.style.display = 'none';
+
+        if (data.success) {
+            // Tampilkan log dari server
+            if (data.logs) {
+                data.logs.forEach(log => {
+                    addLogToContainer('reverse-log-container', log.message, log.type);
+                });
+            }
+            displayReverseResults(data.results, data.summary);
+            if (data.excel_data) {
+                const downloadContainer = document.getElementById('reverse-results');
+                const btn = document.createElement('button');
+                btn.className = 'success';
+                btn.innerHTML = '📊 Download Excel Report';
+                btn.style.marginTop = '20px';
+                btn.onclick = () => downloadExcel(data.excel_data);
+                downloadContainer.appendChild(btn);
+            }
+            showToast('✅ Reverse DNS completed!');
+        } else {
+            addLogToContainer('reverse-log-container', `❌ Error: ${data.error}`, 'error');
+            showToast('❌ Reverse DNS failed!', true);
+        }
+    } catch (err) {
+        addLogToContainer('reverse-log-container', `❌ Network error: ${err.message}`, 'error');
+        showToast('❌ Network error occurred!', true);
+    } finally {
+        progressDiv.style.display = 'none';
+        runBtn.textContent = originalText;
+        runBtn.disabled = false;
+    }
+}
+
+function addLogToContainer(containerId, message, type) {
+    const logContainer = document.getElementById(containerId);
+    const logEntry = document.createElement('div');
+    logEntry.className = `log-entry log-${type}`;
+    const timestamp = new Date().toLocaleTimeString();
+    logEntry.innerHTML = `<span style="color: #666;">[${timestamp}]</span> ${message}`;
+    logContainer.appendChild(logEntry);
+    logContainer.scrollTop = logContainer.scrollHeight;
+    if (logContainer.children.length > 100) {
+        logContainer.removeChild(logContainer.firstChild);
+    }
+}
+
+function displayReverseResults(results, summary) {
+    let html = `
+        <div class="summary-grid">
+            <div class="summary-card"><strong>${summary.total}</strong> Total Entries</div>
+            <div class="summary-card" style="border-color: rgba(0, 184, 148, 0.3);">
+                <strong style="color: var(--success);">✅ ${summary.reverse_success}</strong>
+                Reverse DNS Success
+            </div>
+            <div class="summary-card" style="border-color: rgba(0, 184, 148, 0.3);">
+                <strong style="color: var(--success);">✅ ${summary.forward_success}</strong>
+                Forward Public IP Found
+            </div>
+        </div>
+        <div class="table-scroll-wrapper" style="max-height: 450px; overflow-y: auto; overflow-x: auto; margin-top: 20px;">
+            <table class="results-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>Original Data</th>
+                        <th>Extracted IP</th>
+                        <th>Domain (Reverse)</th>
+                        <th>Public IP (Forward)</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    for (const r of results) {
+        html += `
+            <tr>
+                <td><strong>${escapeHtml(r.original_data)}</strong></td>
+                <td>${escapeHtml(r.extracted_ip || '-')}</td>
+                <td>${escapeHtml(r.domain || '-')}</td>
+                <td>${escapeHtml(r.public_ip || '-')}</td>
+            </tr>
+        `;
+    }
+    html += '</tbody></table></div>';
+    document.getElementById('reverse-results').innerHTML = html;
+}
+
+// Pastikan fungsi downloadExcel sudah ada (jika belum, tambahkan)
+function downloadExcel(base64Data) {
+    const link = document.createElement('a');
+    link.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + base64Data;
+    link.download = `reverse_dns_${new Date().toISOString().slice(0,10)}.xlsx`;
+    link.click();
+    showToast('📊 Excel report downloaded!');
+}
+
+// Event listener untuk mengubah info DNS saat dropdown berubah
+document.getElementById('dns-server').addEventListener('change', function() {
+    const dnsValue = this.value;
+    let infoText = '';
+    if (dnsValue === 'default') {
+        infoText = 'ℹ️ Using <strong>Default System DNS</strong>';
+    } else {
+        infoText = 'ℹ️ Using <strong>Public DNS (Multi-Server)</strong> - Will try Cloudflare, Google, OpenDNS, Quad9, Comodo in order';
+    }
+    document.getElementById('dns-info').innerHTML = infoText;
 });
