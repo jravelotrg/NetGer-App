@@ -1,11 +1,11 @@
-project/
+firewall-network-tools/
 │
-├── app.py                 # Backend Flask (Python)
+├── app.py                 # Backend Flask (API endpoints)
 ├── templates/
-│   └── index.html         # Template HTML utama
+│   └── index.html         # Halaman utama
 ├── static/
-│   ├── css/
-│   │   └── style.css      # Stylesheet
+│   ├── style.css          # Styling
 │   └── js/
-│       └── script.js      # JavaScript
-└── requirements.txt       # Dependencies
+│       └── script.js      # Frontend logic
+├── requirements.txt       # Daftar dependency (optional)
+└── README.md
