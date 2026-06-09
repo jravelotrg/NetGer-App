@@ -27,7 +27,7 @@ Aplikasi ini mendukung input teks massal, pemrosesan paralel (threading), dan ek
 - Ekspor ke Excel (2 sheet: detail per IP + ringkasan domain)
 
 ### 🔄 Reverse DNS Lookup Tool
-- Input teks bebas (satu baris per entri). Setiap baris dapat berisi IP atau teks lain (contoh: `/Common/10.49.58.105:80`)
+- Input teks bebas (satu baris per entri). Setiap baris dapat berisi IP atau teks lain (contoh: `/Common/10.29.58.105:80`)
 - Ekstraksi otomatis alamat IPv4 pertama dari setiap baris
 - Reverse lookup (PTR) menggunakan resolver sistem untuk mendapatkan nama domain
 - Forward lookup ke public IP menggunakan multi-DNS (Cloudflare, Google, OpenDNS, Quad9, Comodo) hingga menemukan IP publik
