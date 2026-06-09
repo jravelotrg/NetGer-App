@@ -50,17 +50,3 @@ Aplikasi ini mendukung input teks massal, pemrosesan paralel (threading), dan ek
 ### Prasyarat
 - Python 3.8 atau lebih baru
 - Pip (package manager Python)
-
-### Langkah-langkah
-
-1. **Clone repository**
-   ```bash
-   git clone https://github.com/username/firewall-network-tools.git
-   cd firewall-network-tools
-
-2. Buat virtual environment (opsional tapi direkomendasikan)
-
-python -m venv venv
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate      # Windows
-
